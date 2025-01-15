@@ -57,6 +57,13 @@ async function run() {
       res.send(result);
     })
 
+    app.get('/best-workers',async(req,res)=>{
+      const filter = {role: 'worker'};
+      const cursor = usersCollection.find(filter).sort({availableCoin: -1}).limit(6);
+      const result = await cursor.toArray();
+      res.send(result);
+    })
+
     // task related api
     app.get('/tasks',async(req,res)=>{
         const result =  await tasksCollection.find().toArray();
