@@ -36,8 +36,17 @@ async function run() {
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
 
     const tasksCollection = client.db('doAndearn').collection('tasks');
+    const usersCollection = client.db('doAndearn').collection('users');
 
+    // user related api
+    app.post('/users',async(req,res)=>{
+      const user = req.body;
+      const result = await usersCollection.insertOne(user);
 
+      res.send(result);
+    })
+
+    // task related api
     app.get('/tasks',async(req,res)=>{
         const result =  await tasksCollection.find().toArray();
         res.send(result);
