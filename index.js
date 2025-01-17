@@ -57,6 +57,13 @@ async function run() {
       res.send(result);
     })
 
+    app.get('/users/:email',async(req,res)=>{
+      const email = req.params.email;
+      const filter = {email: email}
+      const result = await usersCollection.findOne(filter);
+      res.send(result);
+    })
+
     app.get('/best-workers',async(req,res)=>{
       const filter = {role: 'worker'};
       const cursor = usersCollection.find(filter).sort({availableCoin: -1}).limit(6);
@@ -65,9 +72,23 @@ async function run() {
     })
 
     // task related api
+
+    app.post('/tasks',async(req,res)=>{
+      const newTask = req.body;
+      const result = await tasksCollection.insertOne(newTask);
+      res.send(result);
+    })
+
     app.get('/tasks',async(req,res)=>{
         const result =  await tasksCollection.find().toArray();
         res.send(result);
+    })
+
+    app.get('/popular-tasks',async(req,res)=>{
+      const cursor = tasksCollection.find().sort({payable_amount: -1}).limit(6);
+      const result = await cursor.toArray();
+
+      res.send(result);
     })
 
 
