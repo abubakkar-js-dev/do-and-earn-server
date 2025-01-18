@@ -2,7 +2,7 @@ const express = require("express");
 require("dotenv").config();
 const cors = require("cors");
 const port = process.env.PORT || 5000;
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const jwt = require("jsonwebtoken");
 
 const app = express();
@@ -193,6 +193,24 @@ async function run() {
 
       res.send(result);
     });
+
+    app.patch('/tasks/:id',async(req,res)=>{
+      const id = req.params.id;
+      const updatedTask = req.body;
+      const filter = {_id: new ObjectId(id)};
+      const updatedDoc = {
+        $set:{
+          task_title:updatedTask.task_title,
+          task_detail:updatedTask.task_detail,
+          submission_info:updatedTask.submission_info,
+        }
+      }
+
+      const result = await tasksCollection.updateOne(filter,updatedDoc);
+      res.send(result);
+    })
+
+
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
