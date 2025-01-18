@@ -48,6 +48,7 @@ async function run() {
 
     const verifyToken = (req, res, next) => {
       const authHeader = req.headers.authorization;
+      console.log(authHeader);
       if (!authHeader) {
         return res
           .status(401)
@@ -55,6 +56,7 @@ async function run() {
       }
 
       const token = authHeader.split(" ")[1];
+      console.log(token, 'token from verify token');
       jwt.verify(token, process.env.JWT_SECRET_KEY, (err, decoded) => {
         if (err) {
           return res
@@ -62,6 +64,7 @@ async function run() {
             .send({ message: "Invalid token. Unauthorized access." });
         }
         req.decoded = decoded;
+        console.log(decoded)
         next();
       });
     };
@@ -70,6 +73,7 @@ async function run() {
     const roleAuthorization = (requiredRole) => {
       return async (req, res, next) => {
         const email = req.decoded.email;
+        console.log(email, "email from role auth")
         const user = await usersCollection.findOne({ email: email });
 
         if (!user) {
@@ -85,7 +89,6 @@ async function run() {
               message: "Access forbidden. You do not have the required role.",
             });
         }
-
         next(); 
       };
     };
@@ -97,6 +100,24 @@ async function run() {
 
       res.send(result);
     });
+
+    // reduce buyer coin
+
+    app.patch('/users',verifyToken,roleAuthorization('buyer'),async(req,res)=>{
+      const updatedUser = req.body;
+      const email = req.decoded.email;
+      // console.log(email,"from patch user");
+      const filter = {email: email};
+      const updatedDoc = {
+        $set: {
+          availableCoin: updatedUser.availableCoin,
+        }
+      }
+
+      const result = await usersCollection.updateOne(filter,updatedDoc);
+      res.send(result);
+
+    })
 
     app.get("/users/:email", async (req, res) => {
       const email = req.params.email;
@@ -117,7 +138,7 @@ async function run() {
 
     // task related api
 
-    app.post("/tasks", async (req, res) => {
+    app.post("/tasks",verifyToken,roleAuthorization('buyer'), async (req, res) => {
       const newTask = req.body;
       const result = await tasksCollection.insertOne(newTask);
       res.send(result);
