@@ -194,7 +194,7 @@ async function run() {
       res.send(result);
     });
 
-    app.patch('/tasks/:id',async(req,res)=>{
+    app.patch('/tasks/:id',verifyToken,roleAuthorization('buyer'),async(req,res)=>{
       const id = req.params.id;
       const updatedTask = req.body;
       const filter = {_id: new ObjectId(id)};
@@ -207,6 +207,13 @@ async function run() {
       }
 
       const result = await tasksCollection.updateOne(filter,updatedDoc);
+      res.send(result);
+    })
+
+    app.delete('/tasks/:id',verifyToken,roleAuthorization('buyer'),async(req,res)=>{
+      const id = req.params.id;
+      const filter = {_id: new ObjectId(id)};
+      const result = await tasksCollection.deleteOne(filter);
       res.send(result);
     })
 
