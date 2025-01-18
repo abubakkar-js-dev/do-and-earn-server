@@ -56,7 +56,7 @@ async function run() {
       }
 
       const token = authHeader.split(" ")[1];
-      console.log(token, 'token from verify token');
+      console.log(token, "token from verify token");
       jwt.verify(token, process.env.JWT_SECRET_KEY, (err, decoded) => {
         if (err) {
           return res
@@ -64,7 +64,7 @@ async function run() {
             .send({ message: "Invalid token. Unauthorized access." });
         }
         req.decoded = decoded;
-        console.log(decoded)
+        console.log(decoded);
         next();
       });
     };
@@ -73,7 +73,7 @@ async function run() {
     const roleAuthorization = (requiredRole) => {
       return async (req, res, next) => {
         const email = req.decoded.email;
-        console.log(email, "email from role auth")
+        console.log(email, "email from role auth");
         const user = await usersCollection.findOne({ email: email });
 
         if (!user) {
@@ -83,13 +83,11 @@ async function run() {
         }
 
         if (user.role !== requiredRole) {
-          return res
-            .status(403)
-            .send({
-              message: "Access forbidden. You do not have the required role.",
-            });
+          return res.status(403).send({
+            message: "Access forbidden. You do not have the required role.",
+          });
         }
-        next(); 
+        next();
       };
     };
 
@@ -103,21 +101,30 @@ async function run() {
 
     // reduce buyer coin
 
-    app.patch('/users',verifyToken,roleAuthorization('buyer'),async(req,res)=>{
-      const updatedUser = req.body;
-      const email = req.decoded.email;
-      // console.log(email,"from patch user");
-      const filter = {email: email};
-      const updatedDoc = {
-        $set: {
-          availableCoin: updatedUser.availableCoin,
+    app.patch(
+      "/users",
+      verifyToken,
+      roleAuthorization("buyer"),
+      async (req, res) => {
+        const updatedUser = req.body;
+        const email = req.query.email;
+        // console.log(email,"from patch user");
+        if (req.decoded.email !== email) {
+          return res
+            .status(403)
+            .send({ message: "You are not authorized to update this user." });
         }
+        const filter = { email: email };
+        const updatedDoc = {
+          $set: {
+            availableCoin: updatedUser.availableCoin,
+          },
+        };
+
+        const result = await usersCollection.updateOne(filter, updatedDoc);
+        res.send(result);
       }
-
-      const result = await usersCollection.updateOne(filter,updatedDoc);
-      res.send(result);
-
-    })
+    );
 
     app.get("/users/:email", async (req, res) => {
       const email = req.params.email;
@@ -138,16 +145,44 @@ async function run() {
 
     // task related api
 
-    app.post("/tasks",verifyToken,roleAuthorization('buyer'), async (req, res) => {
-      const newTask = req.body;
-      const result = await tasksCollection.insertOne(newTask);
-      res.send(result);
-    });
+    app.post(
+      "/tasks",
+      verifyToken,
+      roleAuthorization("buyer"),
+      async (req, res) => {
+        const newTask = req.body;
+        const result = await tasksCollection.insertOne(newTask);
+        res.send(result);
+      }
+    );
 
     app.get("/tasks", async (req, res) => {
       const result = await tasksCollection.find().toArray();
       res.send(result);
     });
+
+    app.get(
+      "/my-tasks/:email",
+      verifyToken,
+      roleAuthorization("buyer"),
+      async (req, res) => {
+        const email = req.params.email;
+        if (req.decoded.email !== email) {
+          return res
+            .status(403)
+            .send({ message: "Forbidden access. You can't access the tasks" });
+        }
+        const filter = { buyer_email: email };
+        const result = await tasksCollection
+          .find(filter)
+          .sort({
+            completion_date: -1
+          })
+          .toArray();
+
+        res.send(result);
+      }
+    );
 
     app.get("/popular-tasks", async (req, res) => {
       const cursor = tasksCollection
