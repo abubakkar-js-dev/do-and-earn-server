@@ -36,6 +36,8 @@ async function run() {
     const tasksCollection = client.db("doAndearn").collection("tasks");
     const usersCollection = client.db("doAndearn").collection("users");
     const paymentsCollection = client.db("doAndearn").collection("payments");
+    const submissionCollection = client.db("doAndearn").collection("submissions");
+
 
     // jwt and authentication related API
     app.post("/jwt", (req, res) => {
@@ -129,11 +131,18 @@ async function run() {
       }
     );
 
-    app.get("/users/:email", async (req, res) => {
+    app.get("/users/:email",verifyToken, async (req, res) => {
       const email = req.params.email;
       const filter = { email: email };
       const result = await usersCollection.findOne(filter);
       res.send(result);
+    });
+
+    app.get('/users/role/:email',verifyToken,async(req,res)=>{
+      const email = req.params.email;
+      const user = await usersCollection.findOne({email: email});
+      const role = user?.role;
+      res.send({role: role});
     });
 
     app.get("/best-workers", async (req, res) => {
@@ -159,10 +168,20 @@ async function run() {
       }
     );
 
-    app.get("/tasks", async (req, res) => {
-      const result = await tasksCollection.find().toArray();
+    app.get("/tasks",verifyToken,roleAuthorization('worker'), async (req, res) => {
+      const filter = {required_workers: {$gt: 0}};
+      const result = await tasksCollection.find(filter).toArray();
       res.send(result);
     });
+
+    app.get('/tasks/:id',verifyToken,roleAuthorization('worker'),async(req,res)=>{
+      const id = req.params.id;
+      console.log(id);
+      const filter = {_id: new ObjectId(id)};
+      const result = await tasksCollection.findOne(filter);
+
+      res.send(result);
+    })
 
     app.get(
       "/my-tasks/:email",
