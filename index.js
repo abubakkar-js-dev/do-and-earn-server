@@ -2,6 +2,7 @@ const express = require("express");
 require("dotenv").config();
 const cors = require("cors");
 const port = process.env.PORT || 5000;
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const jwt = require("jsonwebtoken");
 
@@ -34,6 +35,7 @@ async function run() {
 
     const tasksCollection = client.db("doAndearn").collection("tasks");
     const usersCollection = client.db("doAndearn").collection("users");
+    const paymentsCollection = client.db("doAndearn").collection("payments");
 
     // jwt and authentication related API
     app.post("/jwt", (req, res) => {
@@ -99,7 +101,7 @@ async function run() {
       res.send(result);
     });
 
-    // reduce buyer coin
+    // update user
 
     app.patch(
       "/users",
@@ -107,13 +109,14 @@ async function run() {
       roleAuthorization("buyer"),
       async (req, res) => {
         const updatedUser = req.body;
+        console.log(updatedUser);
         const email = req.query.email;
         // console.log(email,"from patch user");
-        if (req.decoded.email !== email) {
-          return res
-            .status(403)
-            .send({ message: "You are not authorized to update this user." });
-        }
+        // if (req.decoded.email !== email) {
+        //   return res
+        //     .status(403)
+        //     .send({ message: "You are not authorized to update this user." });
+        // }
         const filter = { email: email };
         const updatedDoc = {
           $set: {
@@ -217,6 +220,43 @@ async function run() {
       res.send(result);
     })
 
+    // stripe payment intent
+    app.post('/create-payment-intent', verifyToken, roleAuthorization('buyer'), async (req, res) => {
+      const { price } = req.body;
+      const amount = parseFloat(price * 100); 
+      // console.log('Amount from payment intent', amount);
+      try {
+        const paymentIntent = await stripe.paymentIntents.create({
+          amount: amount,
+          currency: 'usd',
+          payment_method_types: ['card'], 
+        });
+    
+        res.send({
+          clientSecret: paymentIntent.client_secret,
+        });
+      } catch (error) {
+        console.error('Error creating payment intent:', error);
+        res.status(500).send({ error: 'Failed to create payment intent' });
+      }
+    });
+    
+
+
+
+    // payment related api
+    app.get('/payments/:email',verifyToken,roleAuthorization('buyer'),async(req,res)=>{
+      const email = req.params.email;
+      const filter = {email: email};
+      const result = await paymentsCollection.find(filter).toArray();
+      res.send(result);
+    })
+
+    app.post('/payments',verifyToken,roleAuthorization('buyer'),async(req,res)=>{
+      const payment = req.body;
+      const result = await paymentsCollection.insertOne(payment);
+      res.send(result);
+    })
 
   } finally {
     // Ensures that the client will close when you finish/error
