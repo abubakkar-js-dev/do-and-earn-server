@@ -277,6 +277,31 @@ async function run() {
       res.send(result);
     })
 
+    // submission related apis
+
+    app.post('/submissions',verifyToken,roleAuthorization('worker'),async(req,res)=>{
+      const newSubmission = req.body;
+      const result = await submissionCollection.insertOne(newSubmission);
+
+      res.send(result);
+    })
+
+    app.get("/submissions", async (req, res) => {
+      const { email, page = 1, limit = 5 } = req.query;
+      const skip = (page - 1) * limit;
+    
+      const query = { worker_email: email }; 
+      const totalSubmissions = await submissionCollection.countDocuments(query);
+      const submissions = await submissionCollection.find(query)
+        .skip(parseInt(skip))
+        .limit(parseInt(limit))
+        .toArray();
+    
+      res.json({ submissions, totalSubmissions });
+    });
+    
+
+
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
