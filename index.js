@@ -37,6 +37,7 @@ async function run() {
     const usersCollection = client.db("doAndearn").collection("users");
     const paymentsCollection = client.db("doAndearn").collection("payments");
     const submissionCollection = client.db("doAndearn").collection("submissions");
+    const withdrawalCollection = client.db("doAndearn").collection("withdrawals");
 
 
     // jwt and authentication related API
@@ -103,7 +104,12 @@ async function run() {
       res.send(result);
     });
 
-    // update user
+    app.get('/users',verifyToken,roleAuthorization('admin'),async(req,res)=>{
+      const result = await usersCollection.find().toArray();
+      res.send(result);
+    })
+
+    // update user coin
 
     app.patch(
       "/users",
@@ -144,6 +150,29 @@ async function run() {
       const role = user?.role;
       res.send({role: role});
     });
+
+    app.patch('/users/:id/role',verifyToken,roleAuthorization('admin'),async(req,res)=>{
+      const id = req.params.id;
+      const updatedRole = req.body;
+      const filter = {_id: new ObjectId(id)};
+      console.log(updatedRole);
+      const updatedDoc = {
+        $set: {
+          role: updatedRole.role
+        } 
+      }
+
+      const result = usersCollection.updateOne(filter,updatedDoc);
+      res.send(result);
+    })
+
+    app.delete('/users/:id',async(req,res)=>{
+      const id = req.params.id;
+      const filter = {_id: new ObjectId(id)};
+      const result = await usersCollection.deleteOne(filter);
+
+      res.send(result);
+    })
 
     app.get("/best-workers", async (req, res) => {
       const filter = { role: "worker" };
@@ -299,6 +328,14 @@ async function run() {
     
       res.json({ submissions, totalSubmissions });
     });
+
+
+    // withdrawals related api
+    app.post('/withdrawals',verifyToken,roleAuthorization('worker'),async(req,res)=>{
+      const newWithdrawal = req.body;
+      const result = await withdrawalCollection.insertOne(newWithdrawal);
+      res.send(result);
+    })
     
 
 
