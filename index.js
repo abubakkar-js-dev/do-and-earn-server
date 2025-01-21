@@ -2,7 +2,7 @@ const express = require("express");
 require("dotenv").config();
 const cors = require("cors");
 const port = process.env.PORT || 5000;
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const jwt = require("jsonwebtoken");
 
@@ -36,9 +36,12 @@ async function run() {
     const tasksCollection = client.db("doAndearn").collection("tasks");
     const usersCollection = client.db("doAndearn").collection("users");
     const paymentsCollection = client.db("doAndearn").collection("payments");
-    const submissionCollection = client.db("doAndearn").collection("submissions");
-    const withdrawalCollection = client.db("doAndearn").collection("withdrawals");
-
+    const submissionCollection = client
+      .db("doAndearn")
+      .collection("submissions");
+    const withdrawalCollection = client
+      .db("doAndearn")
+      .collection("withdrawals");
 
     // jwt and authentication related API
     app.post("/jwt", (req, res) => {
@@ -75,7 +78,7 @@ async function run() {
     };
 
     // Role-based middleware (Admin, Worker, Buyer)
-    const roleAuthorization = (requiredRole=[]) => {
+    const roleAuthorization = (requiredRole = []) => {
       return async (req, res, next) => {
         const email = req.decoded.email;
         // console.log(email, "email from role auth");
@@ -104,10 +107,15 @@ async function run() {
       res.send(result);
     });
 
-    app.get('/users',verifyToken,roleAuthorization(['admin']),async(req,res)=>{
-      const result = await usersCollection.find().toArray();
-      res.send(result);
-    })
+    app.get(
+      "/users",
+      verifyToken,
+      roleAuthorization(["admin"]),
+      async (req, res) => {
+        const result = await usersCollection.find().toArray();
+        res.send(result);
+      }
+    );
 
     // update user coin
 
@@ -137,42 +145,47 @@ async function run() {
       }
     );
 
-    app.get("/users/:email",verifyToken, async (req, res) => {
+    app.get("/users/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
       const filter = { email: email };
       const result = await usersCollection.findOne(filter);
       res.send(result);
     });
 
-    app.get('/users/role/:email',verifyToken,async(req,res)=>{
+    app.get("/users/role/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
-      const user = await usersCollection.findOne({email: email});
+      const user = await usersCollection.findOne({ email: email });
       const role = user?.role;
-      res.send({role: role});
+      res.send({ role: role });
     });
 
-    app.patch('/users/:id/role',verifyToken,roleAuthorization(['admin']),async(req,res)=>{
-      const id = req.params.id;
-      const updatedRole = req.body;
-      const filter = {_id: new ObjectId(id)};
-      console.log(updatedRole);
-      const updatedDoc = {
-        $set: {
-          role: updatedRole.role
-        } 
+    app.patch(
+      "/users/:id/role",
+      verifyToken,
+      roleAuthorization(["admin"]),
+      async (req, res) => {
+        const id = req.params.id;
+        const updatedRole = req.body;
+        const filter = { _id: new ObjectId(id) };
+        console.log(updatedRole);
+        const updatedDoc = {
+          $set: {
+            role: updatedRole.role,
+          },
+        };
+
+        const result = usersCollection.updateOne(filter, updatedDoc);
+        res.send(result);
       }
+    );
 
-      const result = usersCollection.updateOne(filter,updatedDoc);
-      res.send(result);
-    })
-
-    app.delete('/users/:id',async(req,res)=>{
+    app.delete("/users/:id", async (req, res) => {
       const id = req.params.id;
-      const filter = {_id: new ObjectId(id)};
+      const filter = { _id: new ObjectId(id) };
       const result = await usersCollection.deleteOne(filter);
 
       res.send(result);
-    })
+    });
 
     app.get("/best-workers", async (req, res) => {
       const filter = { role: "worker" };
@@ -197,27 +210,40 @@ async function run() {
       }
     );
 
+    app.get(
+      "/tasks",
+      verifyToken,
+      roleAuthorization(["worker", "admin"]),
+      async (req, res) => {
+        const filter = { required_workers: { $gt: 0 } };
+        const result = await tasksCollection.find(filter).toArray();
+        res.send(result);
+      }
+    );
 
+    app.get(
+      "/all-tasks",
+      verifyToken,
+      roleAuthorization(["admin"]),
+      async (req, res) => {
+        const result = await tasksCollection.find().toArray();
+        res.send(result);
+      }
+    );
 
-    app.get("/tasks",verifyToken,roleAuthorization(['worker','admin']), async (req, res) => {
-      const filter = {required_workers: {$gt: 0}};
-      const result = await tasksCollection.find(filter).toArray();
-      res.send(result);
-    });
+    app.get(
+      "/tasks/:id",
+      verifyToken,
+      roleAuthorization(["worker"]),
+      async (req, res) => {
+        const id = req.params.id;
+        console.log(id);
+        const filter = { _id: new ObjectId(id) };
+        const result = await tasksCollection.findOne(filter);
 
-    app.get('/all-tasks',verifyToken,roleAuthorization(['admin']),async(req,res)=>{
-      const result = await tasksCollection.find().toArray();
-      res.send(result);
-    })
-
-    app.get('/tasks/:id',verifyToken,roleAuthorization(['worker']),async(req,res)=>{
-      const id = req.params.id;
-      console.log(id);
-      const filter = {_id: new ObjectId(id)};
-      const result = await tasksCollection.findOne(filter);
-
-      res.send(result);
-    })
+        res.send(result);
+      }
+    );
 
     app.get(
       "/my-tasks/:email",
@@ -234,7 +260,7 @@ async function run() {
         const result = await tasksCollection
           .find(filter)
           .sort({
-            completion_date: -1
+            completion_date: -1,
           })
           .toArray();
 
@@ -252,99 +278,267 @@ async function run() {
       res.send(result);
     });
 
-    app.patch('/tasks/:id',verifyToken,roleAuthorization(['buyer']),async(req,res)=>{
-      const id = req.params.id;
-      const updatedTask = req.body;
-      const filter = {_id: new ObjectId(id)};
-      const updatedDoc = {
-        $set:{
-          task_title:updatedTask.task_title,
-          task_detail:updatedTask.task_detail,
-          submission_info:updatedTask.submission_info,
-        }
+    app.patch(
+      "/tasks/:id",
+      verifyToken,
+      roleAuthorization(["buyer"]),
+      async (req, res) => {
+        const id = req.params.id;
+        const updatedTask = req.body;
+        const filter = { _id: new ObjectId(id) };
+        const updatedDoc = {
+          $set: {
+            task_title: updatedTask.task_title,
+            task_detail: updatedTask.task_detail,
+            submission_info: updatedTask.submission_info,
+          },
+        };
+
+        const result = await tasksCollection.updateOne(filter, updatedDoc);
+        res.send(result);
       }
+    );
 
-      const result = await tasksCollection.updateOne(filter,updatedDoc);
-      res.send(result);
-    })
-
-    app.delete('/tasks/:id',verifyToken,roleAuthorization(['buyer','admin']),async(req,res)=>{
-      const id = req.params.id;
-      const filter = {_id: new ObjectId(id)};
-      const result = await tasksCollection.deleteOne(filter);
-      res.send(result);
-    })
+    app.delete(
+      "/tasks/:id",
+      verifyToken,
+      roleAuthorization(["buyer", "admin"]),
+      async (req, res) => {
+        const id = req.params.id;
+        const filter = { _id: new ObjectId(id) };
+        const result = await tasksCollection.deleteOne(filter);
+        res.send(result);
+      }
+    );
 
     // stripe payment intent
-    app.post('/create-payment-intent', verifyToken, roleAuthorization(['buyer']), async (req, res) => {
-      const { price } = req.body;
-      const amount = parseFloat(price * 100); 
-      // console.log('Amount from payment intent', amount);
-      try {
-        const paymentIntent = await stripe.paymentIntents.create({
-          amount: amount,
-          currency: 'usd',
-          payment_method_types: ['card'], 
-        });
-    
-        res.send({
-          clientSecret: paymentIntent.client_secret,
-        });
-      } catch (error) {
-        console.error('Error creating payment intent:', error);
-        res.status(500).send({ error: 'Failed to create payment intent' });
-      }
-    });
-    
+    app.post(
+      "/create-payment-intent",
+      verifyToken,
+      roleAuthorization(["buyer"]),
+      async (req, res) => {
+        const { price } = req.body;
+        const amount = parseFloat(price * 100);
+        // console.log('Amount from payment intent', amount);
+        try {
+          const paymentIntent = await stripe.paymentIntents.create({
+            amount: amount,
+            currency: "usd",
+            payment_method_types: ["card"],
+          });
 
+          res.send({
+            clientSecret: paymentIntent.client_secret,
+          });
+        } catch (error) {
+          console.error("Error creating payment intent:", error);
+          res.status(500).send({ error: "Failed to create payment intent" });
+        }
+      }
+    );
 
     // payment related api
-    app.get('/payments/:email',verifyToken,roleAuthorization(['buyer']),async(req,res)=>{
-      const email = req.params.email;
-      const filter = {email: email};
-      const result = await paymentsCollection.find(filter).toArray();
-      res.send(result);
-    })
+    app.get(
+      "/payments/:email",
+      verifyToken,
+      roleAuthorization(["buyer"]),
+      async (req, res) => {
+        const email = req.params.email;
+        const filter = { email: email };
+        const result = await paymentsCollection.find(filter).toArray();
+        res.send(result);
+      }
+    );
 
-    app.post('/payments',verifyToken,roleAuthorization(['buyer']),async(req,res)=>{
-      const payment = req.body;
-      const result = await paymentsCollection.insertOne(payment);
-      res.send(result);
-    })
+    app.post(
+      "/payments",
+      verifyToken,
+      roleAuthorization(["buyer"]),
+      async (req, res) => {
+        const payment = req.body;
+        const result = await paymentsCollection.insertOne(payment);
+        res.send(result);
+      }
+    );
 
     // submission related apis
 
-    app.post('/submissions',verifyToken,roleAuthorization(['worker']),async(req,res)=>{
-      const newSubmission = req.body;
-      const result = await submissionCollection.insertOne(newSubmission);
+    app.post(
+      "/submissions",
+      verifyToken,
+      roleAuthorization(["worker"]),
+      async (req, res) => {
+        const newSubmission = req.body;
+        const result = await submissionCollection.insertOne(newSubmission);
 
-      res.send(result);
-    })
+        res.send(result);
+      }
+    );
 
-    app.get("/submissions",verifyToken,roleAuthorization(['worker']), async (req, res) => {
-      const { email, page = 1, limit = 5 } = req.query;
-      const skip = (page - 1) * limit;
-    
-      const query = { worker_email: email }; 
-      const totalSubmissions = await submissionCollection.countDocuments(query);
-      const submissions = await submissionCollection.find(query)
-        .skip(parseInt(skip))
-        .limit(parseInt(limit))
-        .toArray();
-    
-      res.json({ submissions, totalSubmissions });
-    });
+    app.get(
+      "/submissions",
+      verifyToken,
+      roleAuthorization(["worker"]),
+      async (req, res) => {
+        const { email, page = 1, limit = 5 } = req.query;
+        const skip = (page - 1) * limit;
 
+        const query = { worker_email: email };
+        const totalSubmissions = await submissionCollection.countDocuments(
+          query
+        );
+        const submissions = await submissionCollection
+          .find(query)
+          .skip(parseInt(skip))
+          .limit(parseInt(limit))
+          .toArray();
+
+        res.json({ submissions, totalSubmissions });
+      }
+    );
 
     // withdrawals related api
-    app.post('/withdrawals',verifyToken,roleAuthorization(['worker']),async(req,res)=>{
-      const newWithdrawal = req.body;
-      const result = await withdrawalCollection.insertOne(newWithdrawal);
-      res.send(result);
-    })
-    
+    app.post(
+      "/withdrawals",
+      verifyToken,
+      roleAuthorization(["worker"]),
+      async (req, res) => {
+        const newWithdrawal = req.body;
+        const result = await withdrawalCollection.insertOne(newWithdrawal);
+        res.send(result);
+      }
+    );
 
+    app.get(
+      "/withdrawals",
+      verifyToken,
+      roleAuthorization(["admin"]),
+      async (req, res) => {
+        const result = await withdrawalCollection
+          .find({ status: "pending" })
+          .toArray();
+        res.send(result);
+      }
+    );
 
+    // Update Withdrawal Status Route
+    app.patch("/withdrawals/:id",verifyToken,roleAuthorization(['admin']), async (req, res) => {
+      const withdrawalId = req.params.id;
+      const { status, withdrawal_coin, worker_email } = req.body;
+      // console.log(status);
+
+      try {
+        // Update withdrawal request status
+        const updatedWithdrawal = await withdrawalCollection.updateOne(
+          { _id: new ObjectId(withdrawalId) },
+          { $set: { status } }
+        );
+
+        if (updatedWithdrawal.modifiedCount === 0) {
+          return res
+            .status(404)
+            .send({ message: "Withdrawal request not found" });
+        }
+
+        // Decrease user coin balance
+        const updatedUser = await usersCollection.updateOne(
+          { email: worker_email },
+          { $inc: { availableCoin: -withdrawal_coin } }
+        );
+
+        if (updatedUser.modifiedCount === 0) {
+          return res.status(404).send({ message: "User not found" });
+        }
+
+        res.send({
+          success: true,
+        });
+      } catch (error) {
+        console.error("Error processing withdrawal:", error);
+        res.status(500).send({ message: "Internal Server Error" });
+      }
+    });
+
+    // States related api
+
+    app.get(
+      "/admin-stats",
+      verifyToken,
+      roleAuthorization(["admin"]),
+      async (req, res) => {
+        try {
+          // First, aggregate stats from usersCollection
+          const statsFromUsers = await usersCollection
+            .aggregate([
+              {
+                $facet: {
+                  // Count total workers
+                  totalWorkers: [
+                    { $match: { role: "worker" } },
+                    { $count: "count" },
+                  ],
+
+                  // Count total buyers
+                  totalBuyers: [
+                    { $match: { role: "buyer" } },
+                    { $count: "count" },
+                  ],
+
+                  // Sum of all available coins
+                  totalAvailableCoin: [
+                    {
+                      $group: {
+                        _id: null,
+                        totalCoin: { $sum: "$availableCoin" },
+                      },
+                    },
+                  ],
+                },
+              },
+              {
+                $project: {
+                  totalWorkers: { $arrayElemAt: ["$totalWorkers.count", 0] },
+                  totalBuyers: { $arrayElemAt: ["$totalBuyers.count", 0] },
+                  totalAvailableCoin: {
+                    $arrayElemAt: ["$totalAvailableCoin.totalCoin", 0],
+                  },
+                },
+              },
+            ])
+            .toArray();
+
+          // Second, aggregate total payments from paymentsCollection
+          const statsFromPayments = await paymentsCollection
+            .aggregate([
+              {
+                $group: {
+                  _id: null,
+                  totalPayments: { $sum: "$price" },
+                },
+              },
+              {
+                $project: {
+                  _id: 0,
+                  totalPayments: 1,
+                },
+              },
+            ])
+            .toArray();
+
+          // Merge the two results
+          const result = {
+            ...statsFromUsers[0],
+            // totalBuyers: 500,
+            totalPayments: statsFromPayments[0]?.totalPayments || 0, // Fallback to 0 if no payments found
+          };
+
+          res.send(result);
+        } catch (error) {
+          console.error("Error fetching admin stats:", error);
+          res.status(500).send({ message: "Internal Server Error" });
+        }
+      }
+    );
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
