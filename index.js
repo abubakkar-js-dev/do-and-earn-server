@@ -61,7 +61,7 @@ async function run() {
       }
 
       const token = authHeader.split(" ")[1];
-      console.log(token, "token from verify token");
+      // console.log(token, "token from verify token");
       jwt.verify(token, process.env.JWT_SECRET_KEY, (err, decoded) => {
         if (err) {
           return res
@@ -75,10 +75,10 @@ async function run() {
     };
 
     // Role-based middleware (Admin, Worker, Buyer)
-    const roleAuthorization = (requiredRole) => {
+    const roleAuthorization = (requiredRole=[]) => {
       return async (req, res, next) => {
         const email = req.decoded.email;
-        console.log(email, "email from role auth");
+        // console.log(email, "email from role auth");
         const user = await usersCollection.findOne({ email: email });
 
         if (!user) {
@@ -87,7 +87,7 @@ async function run() {
             .send({ message: "Invalid user. Unauthorized access." });
         }
 
-        if (user.role !== requiredRole) {
+        if (!requiredRole.includes(user.role)) {
           return res.status(403).send({
             message: "Access forbidden. You do not have the required role.",
           });
@@ -104,7 +104,7 @@ async function run() {
       res.send(result);
     });
 
-    app.get('/users',verifyToken,roleAuthorization('admin'),async(req,res)=>{
+    app.get('/users',verifyToken,roleAuthorization(['admin']),async(req,res)=>{
       const result = await usersCollection.find().toArray();
       res.send(result);
     })
@@ -114,10 +114,10 @@ async function run() {
     app.patch(
       "/users",
       verifyToken,
-      roleAuthorization("buyer"),
+      roleAuthorization(["buyer"]),
       async (req, res) => {
         const updatedUser = req.body;
-        console.log(updatedUser);
+        // console.log(updatedUser);
         const email = req.query.email;
         // console.log(email,"from patch user");
         // if (req.decoded.email !== email) {
@@ -151,7 +151,7 @@ async function run() {
       res.send({role: role});
     });
 
-    app.patch('/users/:id/role',verifyToken,roleAuthorization('admin'),async(req,res)=>{
+    app.patch('/users/:id/role',verifyToken,roleAuthorization(['admin']),async(req,res)=>{
       const id = req.params.id;
       const updatedRole = req.body;
       const filter = {_id: new ObjectId(id)};
@@ -189,7 +189,7 @@ async function run() {
     app.post(
       "/tasks",
       verifyToken,
-      roleAuthorization("buyer"),
+      roleAuthorization(["buyer"]),
       async (req, res) => {
         const newTask = req.body;
         const result = await tasksCollection.insertOne(newTask);
@@ -197,13 +197,20 @@ async function run() {
       }
     );
 
-    app.get("/tasks",verifyToken,roleAuthorization('worker'), async (req, res) => {
+
+
+    app.get("/tasks",verifyToken,roleAuthorization(['worker','admin']), async (req, res) => {
       const filter = {required_workers: {$gt: 0}};
       const result = await tasksCollection.find(filter).toArray();
       res.send(result);
     });
 
-    app.get('/tasks/:id',verifyToken,roleAuthorization('worker'),async(req,res)=>{
+    app.get('/all-tasks',verifyToken,roleAuthorization(['admin']),async(req,res)=>{
+      const result = await tasksCollection.find().toArray();
+      res.send(result);
+    })
+
+    app.get('/tasks/:id',verifyToken,roleAuthorization(['worker']),async(req,res)=>{
       const id = req.params.id;
       console.log(id);
       const filter = {_id: new ObjectId(id)};
@@ -215,7 +222,7 @@ async function run() {
     app.get(
       "/my-tasks/:email",
       verifyToken,
-      roleAuthorization("buyer"),
+      roleAuthorization(["buyer"]),
       async (req, res) => {
         const email = req.params.email;
         if (req.decoded.email !== email) {
@@ -245,7 +252,7 @@ async function run() {
       res.send(result);
     });
 
-    app.patch('/tasks/:id',verifyToken,roleAuthorization('buyer'),async(req,res)=>{
+    app.patch('/tasks/:id',verifyToken,roleAuthorization(['buyer']),async(req,res)=>{
       const id = req.params.id;
       const updatedTask = req.body;
       const filter = {_id: new ObjectId(id)};
@@ -261,7 +268,7 @@ async function run() {
       res.send(result);
     })
 
-    app.delete('/tasks/:id',verifyToken,roleAuthorization('buyer'),async(req,res)=>{
+    app.delete('/tasks/:id',verifyToken,roleAuthorization(['buyer','admin']),async(req,res)=>{
       const id = req.params.id;
       const filter = {_id: new ObjectId(id)};
       const result = await tasksCollection.deleteOne(filter);
@@ -269,7 +276,7 @@ async function run() {
     })
 
     // stripe payment intent
-    app.post('/create-payment-intent', verifyToken, roleAuthorization('buyer'), async (req, res) => {
+    app.post('/create-payment-intent', verifyToken, roleAuthorization(['buyer']), async (req, res) => {
       const { price } = req.body;
       const amount = parseFloat(price * 100); 
       // console.log('Amount from payment intent', amount);
@@ -291,16 +298,15 @@ async function run() {
     
 
 
-
     // payment related api
-    app.get('/payments/:email',verifyToken,roleAuthorization('buyer'),async(req,res)=>{
+    app.get('/payments/:email',verifyToken,roleAuthorization(['buyer']),async(req,res)=>{
       const email = req.params.email;
       const filter = {email: email};
       const result = await paymentsCollection.find(filter).toArray();
       res.send(result);
     })
 
-    app.post('/payments',verifyToken,roleAuthorization('buyer'),async(req,res)=>{
+    app.post('/payments',verifyToken,roleAuthorization(['buyer']),async(req,res)=>{
       const payment = req.body;
       const result = await paymentsCollection.insertOne(payment);
       res.send(result);
@@ -308,14 +314,14 @@ async function run() {
 
     // submission related apis
 
-    app.post('/submissions',verifyToken,roleAuthorization('worker'),async(req,res)=>{
+    app.post('/submissions',verifyToken,roleAuthorization(['worker']),async(req,res)=>{
       const newSubmission = req.body;
       const result = await submissionCollection.insertOne(newSubmission);
 
       res.send(result);
     })
 
-    app.get("/submissions", async (req, res) => {
+    app.get("/submissions",verifyToken,roleAuthorization(['worker']), async (req, res) => {
       const { email, page = 1, limit = 5 } = req.query;
       const skip = (page - 1) * limit;
     
@@ -331,7 +337,7 @@ async function run() {
 
 
     // withdrawals related api
-    app.post('/withdrawals',verifyToken,roleAuthorization('worker'),async(req,res)=>{
+    app.post('/withdrawals',verifyToken,roleAuthorization(['worker']),async(req,res)=>{
       const newWithdrawal = req.body;
       const result = await withdrawalCollection.insertOne(newWithdrawal);
       res.send(result);
