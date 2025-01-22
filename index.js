@@ -397,6 +397,19 @@ async function run() {
       }
     );
 
+    app.get(
+      "/submissions/approved",
+      verifyToken,
+      roleAuthorization(["worker"]),
+      async (req, res) => {
+        const email = req.query.email;
+        const filter = { worker_email: email, status: "approved" };
+        const result = await submissionCollection.find(filter).toArray();
+
+        res.send(result);
+      }
+    );
+
     // withdrawals related api
     app.post(
       "/withdrawals",
@@ -422,42 +435,47 @@ async function run() {
     );
 
     // Update Withdrawal Status Route
-    app.patch("/withdrawals/:id",verifyToken,roleAuthorization(['admin']), async (req, res) => {
-      const withdrawalId = req.params.id;
-      const { status, withdrawal_coin, worker_email } = req.body;
-      // console.log(status);
+    app.patch(
+      "/withdrawals/:id",
+      verifyToken,
+      roleAuthorization(["admin"]),
+      async (req, res) => {
+        const withdrawalId = req.params.id;
+        const { status, withdrawal_coin, worker_email } = req.body;
+        // console.log(status);
 
-      try {
-        // Update withdrawal request status
-        const updatedWithdrawal = await withdrawalCollection.updateOne(
-          { _id: new ObjectId(withdrawalId) },
-          { $set: { status } }
-        );
+        try {
+          // Update withdrawal request status
+          const updatedWithdrawal = await withdrawalCollection.updateOne(
+            { _id: new ObjectId(withdrawalId) },
+            { $set: { status } }
+          );
 
-        if (updatedWithdrawal.modifiedCount === 0) {
-          return res
-            .status(404)
-            .send({ message: "Withdrawal request not found" });
+          if (updatedWithdrawal.modifiedCount === 0) {
+            return res
+              .status(404)
+              .send({ message: "Withdrawal request not found" });
+          }
+
+          // Decrease user coin balance
+          const updatedUser = await usersCollection.updateOne(
+            { email: worker_email },
+            { $inc: { availableCoin: -withdrawal_coin } }
+          );
+
+          if (updatedUser.modifiedCount === 0) {
+            return res.status(404).send({ message: "User not found" });
+          }
+
+          res.send({
+            success: true,
+          });
+        } catch (error) {
+          console.error("Error processing withdrawal:", error);
+          res.status(500).send({ message: "Internal Server Error" });
         }
-
-        // Decrease user coin balance
-        const updatedUser = await usersCollection.updateOne(
-          { email: worker_email },
-          { $inc: { availableCoin: -withdrawal_coin } }
-        );
-
-        if (updatedUser.modifiedCount === 0) {
-          return res.status(404).send({ message: "User not found" });
-        }
-
-        res.send({
-          success: true,
-        });
-      } catch (error) {
-        console.error("Error processing withdrawal:", error);
-        res.status(500).send({ message: "Internal Server Error" });
       }
-    });
+    );
 
     // States related api
 
@@ -536,6 +554,59 @@ async function run() {
         } catch (error) {
           console.error("Error fetching admin stats:", error);
           res.status(500).send({ message: "Internal Server Error" });
+        }
+      }
+    );
+
+    app.get(
+      "/worker-stats/:email",
+      verifyToken,
+      roleAuthorization(["worker"]),
+      async (req, res) => {
+        const email = req.params.email;
+        try {
+          // Totall submissions
+          const totalSubmissions = await submissionCollection.countDocuments({
+            worker_email: email,
+          });
+
+          // Total pending submissions
+          const totalPendingSubmissions =
+            await submissionCollection.countDocuments({
+              worker_email: email,
+              status: "pending",
+            });
+
+          // total Earnings
+          const totalEarningsAggregate = await submissionCollection
+            .aggregate([
+              {
+                $match: {
+                  worker_email: email,
+                  status: "approved",
+                },
+              },
+              {
+                $group: {
+                  _id: null,
+                  totalEarnings: { $sum: "$payable_amount" },
+                },
+              },
+            ])
+            .toArray();
+
+          const totalEarnings =
+            totalEarningsAggregate.length > 0
+              ? totalEarningsAggregate[0].totalEarnings
+              : 0;
+
+          res.send({
+            totalSubmissions,
+            totalPendingSubmissions,
+            totalEarnings,
+          });
+        } catch (error) {
+          console.log(error, "Error fetching worker stats:");
         }
       }
     );
