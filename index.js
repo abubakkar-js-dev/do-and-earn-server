@@ -410,6 +410,81 @@ async function run() {
       }
     );
 
+    app.get(
+      "/submissions/pending",
+      verifyToken,
+      roleAuthorization(["buyer"]),
+      async (req, res) => {
+        const email = req.query.email;
+        const filter = { buyer_email: email, status: "pending" };
+        const result = await submissionCollection.find(filter).toArray();
+        res.send(result);
+      }
+    );
+
+    app.patch("/submissions/:submissionId/approve", async (req, res) => {
+      try {
+        const { submissionId } = req.params;
+        // console.log(submissionId);
+
+        const submission = await submissionCollection.findOne({
+          _id: new ObjectId(submissionId),
+        });
+        if (!submission)
+          return res.status(404).json({ error: "Submission not found" });
+
+        const task = await tasksCollection.findOne({
+          _id: new ObjectId(submission.task_id),
+        });
+        if (!task) return res.status(404).json({ error: "Task not found" });
+
+        // Update submission status
+        await submissionCollection.updateOne(
+          { _id: new ObjectId(submissionId) },
+          { $set: { status: "approved" } }
+        );
+
+        // Update worker's availableCoin
+        await usersCollection.updateOne(
+          { email:submission.worker_email},
+          { $inc: { availableCoin: task.payable_amount } }
+        );
+
+        res.send({success: true});
+      } catch (error) {
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    app.patch("/submissions/:submissionId/reject", async (req, res) => {
+      try {
+        const { submissionId } = req.params;
+
+
+        const submission = await submissionCollection.findOne({
+          _id: new ObjectId(submissionId),
+        });
+        if (!submission)
+          return res.status(404).json({ error: "Submission not found" });
+
+        // Update submission status
+        await submissionCollection.updateOne(
+          { _id: new ObjectId(submissionId) },
+          { $set: { status: "rejected" } }
+        );
+
+        // Update task's required_workers
+        await tasksCollection.updateOne(
+          { _id: new ObjectId(submission.task_id) },
+          { $inc: { required_workers: 1 } }
+        );
+
+        res.send({success: true});
+      } catch (error) {
+        res.status(500).json({ error: error.message });
+      }
+    });
+
     // withdrawals related api
     app.post(
       "/withdrawals",
@@ -608,6 +683,47 @@ async function run() {
         } catch (error) {
           console.log(error, "Error fetching worker stats:");
         }
+      }
+    );
+
+    app.get(
+      "/buyer-stats/:email",
+      verifyToken,
+      roleAuthorization(["buyer"]),
+      async (req, res) => {
+        const email = req.params.email;
+
+        const totalTasks = await tasksCollection.countDocuments({
+          buyer_email: email,
+        });
+
+        const pendingTasks = await tasksCollection.countDocuments({
+          buyer_email: email,
+          required_workers: { $gt: 0 },
+        });
+
+        const totalPayments = await paymentsCollection
+          .aggregate([
+            {
+              $match: {
+                email: email,
+              },
+            },
+            {
+              $group: {
+                _id: null,
+                totalPayments: { $sum: "$price" },
+              },
+            },
+          ])
+          .toArray();
+
+        res.send({
+          totalTasks,
+          pendingTasks,
+          totalPayments:
+            totalPayments.length > 0 ? totalPayments[0].totalPayments : 0,
+        });
       }
     );
   } finally {
