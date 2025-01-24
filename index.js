@@ -9,7 +9,12 @@ const jwt = require("jsonwebtoken");
 const app = express();
 
 // middleware
-app.use(cors());
+app.use(cors({
+  origin: [
+    'https://do-and-earn-9b707.web.app/',
+    'http://localhost:5173/',
+  ]
+}));
 app.use(express.json());
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.y24v7.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
