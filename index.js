@@ -757,7 +757,7 @@ async function run() {
     app.get('/notifications/:email',verifyToken,  async (req, res) => {
       const email = req.params.email;
       const filter = { toEmail: email };
-      const result = await notificationCollection.find(filter).toArray();
+      const result = await notificationCollection.find(filter).sort({time: -1}).toArray();
       res.send(result);
     });
 
