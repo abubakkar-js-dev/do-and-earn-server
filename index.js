@@ -11,8 +11,8 @@ const app = express();
 // middleware
 app.use(cors({
   origin: [
-    'https://do-and-earn-9b707.web.app/',
-    'http://localhost:5173/',
+    'https://do-and-earn-9b707.web.app',
+    'http://localhost:5173',
   ]
 }));
 app.use(express.json());
@@ -31,7 +31,7 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
+    // await client.connect();
     // Send a ping to confirm a successful connection
     // await client.db("admin").command({ ping: 1 });
     // console.log(
@@ -47,6 +47,8 @@ async function run() {
     const withdrawalCollection = client
       .db("doAndearn")
       .collection("withdrawals");
+
+    const notificationCollection = client.db("doAndearn").collection("notifications"); 
 
     // jwt and authentication related API
     app.post("/jwt", (req, res) => {
@@ -402,6 +404,12 @@ async function run() {
       }
     );
 
+    app.get('/submissions/:submissionId',verifyToken, async (req, res) => {
+      const { submissionId } = req.params;
+      const submission = await submissionCollection.findOne({ _id: new ObjectId(submissionId) });
+      res.send(submission);
+    });
+
     app.get(
       "/submissions/approved",
       verifyToken,
@@ -731,6 +739,14 @@ async function run() {
         });
       }
     );
+
+    // notification related api
+    app.post("/notifications",verifyToken, async (req, res) => {
+      const newNotification = req.body;
+      const result = await notificationCollection.insertOne(newNotification);
+      res.send(result);
+    });
+
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
