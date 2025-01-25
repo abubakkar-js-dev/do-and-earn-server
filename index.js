@@ -13,7 +13,7 @@ app.use(cors({
   origin: [
     'https://do-and-earn-9b707.web.app',
     'http://localhost:5173',
-  ]
+  ],
 }));
 app.use(express.json());
 
@@ -63,7 +63,7 @@ async function run() {
 
     const verifyToken = (req, res, next) => {
       const authHeader = req.headers.authorization;
-      console.log(authHeader);
+      // console.log(authHeader);
       if (!authHeader) {
         return res
           .status(401)
@@ -404,10 +404,17 @@ async function run() {
       }
     );
 
-    app.get('/submissions/:submissionId',verifyToken, async (req, res) => {
-      const { submissionId } = req.params;
-      const submission = await submissionCollection.findOne({ _id: new ObjectId(submissionId) });
-      res.send(submission);
+    app.get('/single-submission/:id',verifyToken, async (req, res) => {
+      try {
+        const { id } = req.params;
+        const submission = await submissionCollection.findOne({ _id: new ObjectId(id) });
+        if (!submission) {
+          return res.status(404).json({ error: 'Submission not found' });
+        }
+        res.send(submission);
+      } catch (error) {
+        res.status(500).json({ error: error.message });
+      }
     });
 
     app.get(
@@ -744,6 +751,13 @@ async function run() {
     app.post("/notifications",verifyToken, async (req, res) => {
       const newNotification = req.body;
       const result = await notificationCollection.insertOne(newNotification);
+      res.send(result);
+    });
+
+    app.get('/notifications/:email',verifyToken,  async (req, res) => {
+      const email = req.params.email;
+      const filter = { toEmail: email };
+      const result = await notificationCollection.find(filter).toArray();
       res.send(result);
     });
 
