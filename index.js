@@ -231,7 +231,6 @@ async function run() {
     app.get(
       "/all-tasks",
       verifyToken,
-      roleAuthorization(["admin"]),
       async (req, res) => {
         const result = await tasksCollection.find().toArray();
         res.send(result);
